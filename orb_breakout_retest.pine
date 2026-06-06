@@ -5,6 +5,35 @@ indicator("Key Levels", overlay=true, max_lines_count=500, max_labels_count=500)
 pdh = request.security("", "D", high[1], lookahead=barmerge.lookahead_on)
 pdl = request.security("", "D", low[1],  lookahead=barmerge.lookahead_on)
 
+// ── Timestamps of previous day's highest / lowest 1-min candle ───────────────
+f_prev_day_hl_times() =>
+    var float runH  = na
+    var int   runHt = na
+    var float runL  = na
+    var int   runLt = na
+    var int   pdht  = na
+    var int   pdlt  = na
+
+    if session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
+        pdht  := runHt
+        pdlt  := runLt
+        runH  := na
+        runHt := na
+        runL  := na
+        runLt := na
+
+    if session.ismarket
+        if na(runH) or high >= runH
+            runH  := high
+            runHt := time
+        if na(runL) or low <= runL
+            runL  := low
+            runLt := time
+
+    [pdht, pdlt]
+
+[pdht, pdlt] = request.security("", "1", f_prev_day_hl_times(), lookahead=barmerge.lookahead_on)
+
 // ── PMH / PML: pre-market high/low (accumulated since last session close) ─────
 f_premarket() =>
     var float runH = na
@@ -54,14 +83,18 @@ if timeframe.isintraday
         t0   = time
         t5am = time - 16200000  // 9:30am minus 4h30m = 5:00am ET
 
+        // Line starts from the candle where PDH/PDL actually occurred yesterday
+        tPdh = not na(pdht) ? pdht : t0
+        tPdl = not na(pdlt) ? pdlt : t0
+
         if not na(pdh)
-            lPdh   := line.new(x1=t0, y1=pdh, x2=t0 + 60000, y2=pdh, xloc=xloc.bar_time,
+            lPdh   := line.new(x1=tPdh, y1=pdh, x2=tPdh + 60000, y2=pdh, xloc=xloc.bar_time,
                          extend=extend.right, color=color.green, style=line.style_solid, width=1)
             lblPdh := label.new(x=t0, y=pdh, text="PDH", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.green, 80), textcolor=color.green, size=size.small)
         if not na(pdl)
-            lPdl   := line.new(x1=t0, y1=pdl, x2=t0 + 60000, y2=pdl, xloc=xloc.bar_time,
+            lPdl   := line.new(x1=tPdl, y1=pdl, x2=tPdl + 60000, y2=pdl, xloc=xloc.bar_time,
                          extend=extend.right, color=color.red, style=line.style_solid, width=1)
             lblPdl := label.new(x=t0, y=pdl, text="PDL", xloc=xloc.bar_time,
                          style=label.style_label_right,
