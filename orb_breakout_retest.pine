@@ -84,5 +84,5 @@ if timeframe.isintraday
                 sellState := 0
 
 // Plot signals
-plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.normal)
-plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.normal)
+plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.small)
+plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.small)
