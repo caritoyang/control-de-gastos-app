@@ -16,18 +16,26 @@ f_prev_open_time() =>
 
 prevOpenT = request.security("", "1", f_prev_open_time(), lookahead=barmerge.lookahead_on)
 
-// ── PMH / PML values (pre-market high/low since last close) ──────────────────
+// ── PMH / PML values (pre-market high/low 4:00am–9:30am ET only) ─────────────
 f_premarket() =>
     var float runH = na
     var float runL = na
     var float pmh  = na
     var float pml  = na
+
+    // Only accumulate bars in the 4:00am–9:30am ET window
+    h = hour(time, "America/New_York")
+    isPreMarket = not session.ismarket and h >= 4
+
+    // Reset accumulators when market closes (4pm), so after-hours is excluded
     if not session.ismarket and session.ismarket[1]
         runH := na
         runL := na
-    if not session.ismarket
+
+    if isPreMarket
         runH := na(runH) ? high : math.max(runH, high)
         runL := na(runL) ? low  : math.min(runL, low)
+
     if session.ismarket and not session.ismarket[1]
         pmh := runH
         pml := runL
@@ -56,8 +64,8 @@ if timeframe.isintraday
         line.delete(lPmh),  label.delete(lblPmh)
         line.delete(lPml),  label.delete(lblPml)
 
-        t0    = time                                          // 9:30am today
-        t5am  = time - 16200000                              // 5:00am today
+        t0    = time                                           // 9:30am today
+        t4am  = time - 19800000                              // 4:00am today (9:30 - 5.5h)
         tPrev = not na(prevOpenT) ? prevOpenT : t0 - 86400000 // 9:30am prev day
 
         if not na(pdh)
@@ -73,15 +81,15 @@ if timeframe.isintraday
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
         if not na(pmh)
-            lPmh   := line.new(x1=t5am, y1=pmh, x2=t5am+60000, y2=pmh, xloc=xloc.bar_time,
+            lPmh   := line.new(x1=t4am, y1=pmh, x2=t4am+60000, y2=pmh, xloc=xloc.bar_time,
                          extend=extend.right, color=color.green, style=line.style_dashed, width=1)
-            lblPmh := label.new(x=t5am, y=pmh, text="PMH", xloc=xloc.bar_time,
+            lblPmh := label.new(x=t4am, y=pmh, text="PMH", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.green, 80), textcolor=color.green, size=size.small)
         if not na(pml)
-            lPml   := line.new(x1=t5am, y1=pml, x2=t5am+60000, y2=pml, xloc=xloc.bar_time,
+            lPml   := line.new(x1=t4am, y1=pml, x2=t4am+60000, y2=pml, xloc=xloc.bar_time,
                          extend=extend.right, color=color.red, style=line.style_dashed, width=1)
-            lblPml := label.new(x=t5am, y=pml, text="PML", xloc=xloc.bar_time,
+            lblPml := label.new(x=t4am, y=pml, text="PML", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
 
