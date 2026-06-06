@@ -1,49 +1,32 @@
 //@version=5
-indicator("ORB Breakout & Retest", overlay = true, max_lines_count = 500)
+indicator("ORB Breakout & Retest", overlay=true, max_lines_count=500)
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 5-min data: high/low of first candle + session open/close events
-// ─────────────────────────────────────────────────────────────────────────────
-[high5, low5, sessionOpen5, sessionClose5] = request.security("", "5",
-    [high, low,
-     session.ismarket and not session.ismarket[1],   // first bar of regular session
-     not session.ismarket and session.ismarket[1]],  // first bar outside session (post-market)
-    lookahead = barmerge.lookahead_off)
+// -- 5-min data (first candle of session + session events) --
+high5         = request.security("", "5", high,                                            lookahead=barmerge.lookahead_off)
+low5          = request.security("", "5", low,                                             lookahead=barmerge.lookahead_off)
+sessionOpen5  = request.security("", "5", session.ismarket and not session.ismarket[1],    lookahead=barmerge.lookahead_off)
+sessionClose5 = request.security("", "5", not session.ismarket and session.ismarket[1],    lookahead=barmerge.lookahead_off)
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1-min OHLC for retest/signal detection
-// ─────────────────────────────────────────────────────────────────────────────
-[c1, h1, l1] = request.security("", "1",
-    [close, high, low],
-    lookahead = barmerge.lookahead_off)
+// -- 1-min OHLC for retest/signal detection --
+c1 = request.security("", "1", close, lookahead=barmerge.lookahead_off)
+h1 = request.security("", "1", high,  lookahead=barmerge.lookahead_off)
+l1 = request.security("", "1", low,   lookahead=barmerge.lookahead_off)
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ORB lines — only drawn on intraday timeframes (< Daily)
-// ─────────────────────────────────────────────────────────────────────────────
+// -- ORB levels and lines (intraday only) --
 var float orbH  = na
 var float orbL  = na
 var line  lHigh = na
 var line  lLow  = na
 
 if timeframe.isintraday
-    // First 5-min candle just closed → set ORB levels and draw lines
     if sessionOpen5
         orbH := high5
         orbL := low5
         line.delete(lHigh)
         line.delete(lLow)
-        lHigh := line.new(bar_index, orbH, bar_index + 1, orbH,
-                     extend = extend.right,
-                     color  = color.white,
-                     style  = line.style_solid,
-                     width  = 1)
-        lLow  := line.new(bar_index, orbL, bar_index + 1, orbL,
-                     extend = extend.right,
-                     color  = color.orange,
-                     style  = line.style_solid,
-                     width  = 1)
+        lHigh := line.new(bar_index, orbH, bar_index + 1, orbH, extend=extend.right, color=color.white,  style=line.style_solid, width=1)
+        lLow  := line.new(bar_index, orbL, bar_index + 1, orbL, extend=extend.right, color=color.orange, style=line.style_solid, width=1)
 
-    // Market closed / post-market started → delete lines and clear levels
     if sessionClose5
         line.delete(lHigh)
         line.delete(lLow)
@@ -52,18 +35,8 @@ if timeframe.isintraday
         orbH  := na
         orbL  := na
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Signal state machines (evaluated against 1-min candles)
-//
-//  BUY:  price breaks ABOVE orbH  →  waits for retest (1-min low ≤ orbH)
-//        →  retest bar closes ABOVE orbH  →  green triangle
-//
-//  SELL: price breaks BELOW orbL  →  waits for retest (1-min high ≥ orbL)
-//        →  retest bar closes BELOW orbL  →  red triangle
-//
-//  States: 0 = waiting for initial breakout
-//          1 = breakout confirmed, watching for retest + close
-// ─────────────────────────────────────────────────────────────────────────────
+// -- Signal state machines --
+// States: 0 = waiting for breakout, 1 = breakout confirmed (watching for retest)
 var int buyState  = 0
 var int sellState = 0
 
@@ -71,46 +44,32 @@ buySignal  = false
 sellSignal = false
 
 if timeframe.isintraday
-    // New session → reset both state machines
     if sessionOpen5
         buyState  := 0
         sellState := 0
 
-    // ── BUY setup ────────────────────────────────────────────────────────────
+    // BUY: 1-min breaks above ORB high, then retests and closes above it
     if not na(orbH)
         if buyState == 0
             if c1 > orbH
-                buyState := 1                   // first breakout above ORB high
+                buyState := 1
         else if buyState == 1
-            if l1 <= orbH                       // retest: 1-min bar touched the line
-                if c1 > orbH                    // closed above → confirmed BUY
+            if l1 <= orbH
+                if c1 > orbH
                     buySignal := true
-                buyState := 0                   // reset (signal fired or setup failed)
+                buyState := 0
 
-    // ── SELL setup ───────────────────────────────────────────────────────────
+    // SELL: 1-min breaks below ORB low, then retests and closes below it
     if not na(orbL)
         if sellState == 0
             if c1 < orbL
-                sellState := 1                  // first breakdown below ORB low
+                sellState := 1
         else if sellState == 1
-            if h1 >= orbL                       // retest: 1-min bar touched the line
-                if c1 < orbL                    // closed below → confirmed SELL
+            if h1 >= orbL
+                if c1 < orbL
                     sellSignal := true
                 sellState := 0
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Plot signal markers
-// ─────────────────────────────────────────────────────────────────────────────
-plotshape(buySignal,
-    title    = "BUY",
-    location = location.belowbar,
-    style    = shape.triangleup,
-    color    = color.lime,
-    size     = size.normal)
-
-plotshape(sellSignal,
-    title    = "SELL",
-    location = location.abovebar,
-    style    = shape.triangledown,
-    color    = color.red,
-    size     = size.normal)
+// -- Plot signals --
+plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.normal)
+plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.normal)
