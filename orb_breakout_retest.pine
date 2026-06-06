@@ -61,27 +61,25 @@ if timeframe.isintraday
         buyState  := 0
         sellState := 0
 
-    // BUY: 1-min breaks above ORB high → retest touches line → closes above
+    // BUY: 1-min breaks above ORB high → price returns down to touch line → BUY
     if not na(orbH)
         if buyState == 0
             if c1 > orbH
                 buyState := 1
         else if buyState == 1
             if l1 <= orbH
-                if c1 > orbH
-                    buySignal := true
-                buyState := 0
+                buySignal := true
+                buyState  := 0
 
-    // SELL: 1-min breaks below ORB low → retest touches line → closes below
+    // SELL: 1-min breaks below ORB low → price returns up to touch line → SELL
     if not na(orbL)
         if sellState == 0
             if c1 < orbL
                 sellState := 1
         else if sellState == 1
             if h1 >= orbL
-                if c1 < orbL
-                    sellSignal := true
-                sellState := 0
+                sellSignal := true
+                sellState  := 0
 
 // Plot signals
 plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.small)
