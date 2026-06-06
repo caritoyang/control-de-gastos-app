@@ -1,7 +1,7 @@
 //@version=6
 indicator("5-min", overlay=true, max_lines_count=500, max_labels_count=500)
 
-// ── First 5-min candle high/low (9:30–9:35am) at 1-min resolution ────────────
+// ── High/low of the first 5-min candle (9:30–9:35am), tracked at 1-min res ───
 f_orb() =>
     var float runH   = na
     var float runL   = na
@@ -41,31 +41,28 @@ if timeframe.isintraday
     sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
     sessionEnd  = not session.ismarket and session.ismarket[1]
 
-    // ── 9:30am: reset state, clear previous day's lines ──────────────────────
     if sessionOpen
         line.delete(lH),  label.delete(lblH)
         line.delete(lL),  label.delete(lblL)
         lH := na,  lL := na
         lblH := na, lblL := na
         drawn := false
-        tOpen := time
+        tOpen := time  // 9:30am
 
-    // ── 9:35am: draw once orbH/orbL are ready ────────────────────────────────
+    // Values locked at 9:35am, but line visually starts at 9:30am (tOpen)
     if not drawn and not na(orbH) and session.ismarket
-        t35 = tOpen + 300000  // 9:30am + 5 min = 9:35am
-        lH   := line.new(x1=t35, y1=orbH, x2=t35+60000, y2=orbH, xloc=xloc.bar_time,
+        lH   := line.new(x1=tOpen, y1=orbH, x2=tOpen+60000, y2=orbH, xloc=xloc.bar_time,
                    extend=extend.right, color=color.white, style=line.style_solid, width=1)
-        lblH := label.new(x=t35, y=orbH, text="5H", xloc=xloc.bar_time,
+        lblH := label.new(x=tOpen, y=orbH, text="5H", xloc=xloc.bar_time,
                    style=label.style_label_right,
                    color=color.new(color.white, 80), textcolor=color.white, size=size.small)
-        lL   := line.new(x1=t35, y1=orbL, x2=t35+60000, y2=orbL, xloc=xloc.bar_time,
+        lL   := line.new(x1=tOpen, y1=orbL, x2=tOpen+60000, y2=orbL, xloc=xloc.bar_time,
                    extend=extend.right, color=color.white, style=line.style_solid, width=1)
-        lblL := label.new(x=t35, y=orbL, text="5L", xloc=xloc.bar_time,
+        lblL := label.new(x=tOpen, y=orbL, text="5L", xloc=xloc.bar_time,
                    style=label.style_label_right,
                    color=color.new(color.white, 80), textcolor=color.white, size=size.small)
         drawn := true
 
-    // ── 4:00pm: delete all lines ──────────────────────────────────────────────
     if sessionEnd
         line.delete(lH),  label.delete(lblH)
         line.delete(lL),  label.delete(lblL)
