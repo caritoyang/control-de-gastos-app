@@ -13,24 +13,37 @@ t8  = input.symbol("SPY",   title="Ticker 8")
 t9  = input.symbol("QQQ",   title="Ticker 9")
 t10 = input.symbol("AMD",   title="Ticker 10")
 
-// ── Pre-market high/low (4:00am–9:30am ET) ───────────────────────────────────
+// ── Pre-market high/low — uses session.ispremarket on extended-session data ───
 f_pm() =>
     var float runH = na
     var float runL = na
     var float pmh  = na
     var float pml  = na
-    h = hour(time, "America/New_York")
-    isPreMarket = not session.ismarket and h >= 4 and h < 12
-    if not session.ismarket and session.ismarket[1]
+    // Reset accumulators at the start of each pre-market window
+    if session.ispremarket and not session.ispremarket[1]
         runH := na
         runL := na
-    if isPreMarket
+    // Accumulate during pre-market (4:00am–9:30am ET)
+    if session.ispremarket
         runH := na(runH) ? high : math.max(runH, high)
         runL := na(runL) ? low  : math.min(runL, low)
+    // Lock values at market open
     if session.ismarket and not session.ismarket[1]
         pmh := runH
         pml := runL
     [pmh, pml]
+
+// Extended-session tickers (required to access pre-market bars)
+e1  = ticker.modify(t1,  session.extended)
+e2  = ticker.modify(t2,  session.extended)
+e3  = ticker.modify(t3,  session.extended)
+e4  = ticker.modify(t4,  session.extended)
+e5  = ticker.modify(t5,  session.extended)
+e6  = ticker.modify(t6,  session.extended)
+e7  = ticker.modify(t7,  session.extended)
+e8  = ticker.modify(t8,  session.extended)
+e9  = ticker.modify(t9,  session.extended)
+e10 = ticker.modify(t10, session.extended)
 
 // ── Previous day high/low ─────────────────────────────────────────────────────
 f_dhl() => [high[1], low[1]]
@@ -47,16 +60,16 @@ f_dhl() => [high[1], low[1]]
 [pdh9,  pdl9]  = request.security(t9,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
 [pdh10, pdl10] = request.security(t10, "D", f_dhl(), lookahead=barmerge.lookahead_on)
 
-[pmh1,  pml1]  = request.security(t1,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh2,  pml2]  = request.security(t2,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh3,  pml3]  = request.security(t3,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh4,  pml4]  = request.security(t4,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh5,  pml5]  = request.security(t5,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh6,  pml6]  = request.security(t6,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh7,  pml7]  = request.security(t7,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh8,  pml8]  = request.security(t8,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh9,  pml9]  = request.security(t9,  "1", f_pm(), lookahead=barmerge.lookahead_on)
-[pmh10, pml10] = request.security(t10, "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh1,  pml1]  = request.security(e1,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh2,  pml2]  = request.security(e2,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh3,  pml3]  = request.security(e3,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh4,  pml4]  = request.security(e4,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh5,  pml5]  = request.security(e5,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh6,  pml6]  = request.security(e6,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh7,  pml7]  = request.security(e7,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh8,  pml8]  = request.security(e8,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh9,  pml9]  = request.security(e9,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh10, pml10] = request.security(e10, "1", f_pm(), lookahead=barmerge.lookahead_on)
 
 price1  = request.security(t1,  "", close)
 price2  = request.security(t2,  "", close)
