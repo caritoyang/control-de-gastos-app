@@ -25,7 +25,7 @@ f_premarket() =>
 
     // Only accumulate bars in the 4:00am–9:30am ET window
     h = hour(time, "America/New_York")
-    isPreMarket = not session.ismarket and h >= 4
+    isPreMarket = not session.ismarket and h >= 4 and h < 12
 
     // Reset accumulators when market closes (4pm), so after-hours is excluded
     if not session.ismarket and session.ismarket[1]
