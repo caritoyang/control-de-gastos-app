@@ -24,9 +24,11 @@ c1 = request.security("", "1", close, lookahead=barmerge.lookahead_off)
 h1 = request.security("", "1", high,  lookahead=barmerge.lookahead_off)
 l1 = request.security("", "1", low,   lookahead=barmerge.lookahead_off)
 
-// ORB lines (intraday only: 1, 2, 3, 5, 10, 15, 30-min, etc.)
-var line lHigh = na
-var line lLow  = na
+// ORB lines and labels (intraday only: 1, 2, 3, 5, 10, 15, 30-min, etc.)
+var line  lHigh = na
+var line  lLow  = na
+var label lblHigh = na
+var label lblLow  = na
 
 if timeframe.isintraday
     newOrb     = not na(orbT) and na(orbT[1])   // ORB just appeared for a new session
@@ -35,18 +37,30 @@ if timeframe.isintraday
     if newOrb
         line.delete(lHigh)
         line.delete(lLow)
+        label.delete(lblHigh)
+        label.delete(lblLow)
         lHigh := line.new(x1=int(orbT), y1=orbH, x2=int(orbT) + 60000, y2=orbH,
                      xloc=xloc.bar_time, extend=extend.right,
                      color=color.white, style=line.style_solid, width=1)
         lLow  := line.new(x1=int(orbT), y1=orbL, x2=int(orbT) + 60000, y2=orbL,
                      xloc=xloc.bar_time, extend=extend.right,
-                     color=color.orange, style=line.style_solid, width=1)
+                     color=color.white, style=line.style_solid, width=1)
+        lblHigh := label.new(x=int(orbT), y=orbH, text="5-min High",
+                     xloc=xloc.bar_time, style=label.style_label_right,
+                     color=color.new(color.white, 85), textcolor=color.white, size=size.small)
+        lblLow  := label.new(x=int(orbT), y=orbL, text="5-min Low",
+                     xloc=xloc.bar_time, style=label.style_label_right,
+                     color=color.new(color.white, 85), textcolor=color.white, size=size.small)
 
     if sessionEnd
         line.delete(lHigh)
         line.delete(lLow)
-        lHigh := na
-        lLow  := na
+        label.delete(lblHigh)
+        label.delete(lblLow)
+        lHigh   := na
+        lLow    := na
+        lblHigh := na
+        lblLow  := na
 
 // Signal state machines
 // 0 = waiting for breakout  |  1 = breakout confirmed, watching for retest
@@ -82,5 +96,5 @@ if timeframe.isintraday
                 sellState  := 0
 
 // Plot signals
-plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.small)
-plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.small)
+plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.tiny)
+plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.tiny)
