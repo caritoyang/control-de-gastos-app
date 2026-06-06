@@ -4,6 +4,7 @@ indicator("ORB Breakout & Retest", overlay=true, max_lines_count=500)
 // -- 5-min data (first candle of session + session events) --
 high5         = request.security("", "5", high,                                            lookahead=barmerge.lookahead_off)
 low5          = request.security("", "5", low,                                             lookahead=barmerge.lookahead_off)
+time5         = request.security("", "5", time,                                            lookahead=barmerge.lookahead_off)
 sessionOpen5  = request.security("", "5", session.ismarket and not session.ismarket[1],    lookahead=barmerge.lookahead_off)
 sessionClose5 = request.security("", "5", not session.ismarket and session.ismarket[1],    lookahead=barmerge.lookahead_off)
 
@@ -24,8 +25,14 @@ if timeframe.isintraday
         orbL := low5
         line.delete(lHigh)
         line.delete(lLow)
-        lHigh := line.new(bar_index, orbH, bar_index + 1, orbH, extend=extend.right, color=color.white,  style=line.style_solid, width=1)
-        lLow  := line.new(bar_index, orbL, bar_index + 1, orbL, extend=extend.right, color=color.orange, style=line.style_solid, width=1)
+        // Use bar_time so the line starts exactly at the 5-min candle open
+        // regardless of the chart timeframe
+        lHigh := line.new(x1=int(time5), y1=orbH, x2=int(time5) + 60000, y2=orbH,
+                     xloc=xloc.bar_time, extend=extend.right,
+                     color=color.white, style=line.style_solid, width=1)
+        lLow  := line.new(x1=int(time5), y1=orbL, x2=int(time5) + 60000, y2=orbL,
+                     xloc=xloc.bar_time, extend=extend.right,
+                     color=color.orange, style=line.style_solid, width=1)
 
     if sessionClose5
         line.delete(lHigh)
