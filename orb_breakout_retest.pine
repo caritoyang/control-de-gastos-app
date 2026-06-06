@@ -1,49 +1,55 @@
-//@version=5
+//@version=6
 indicator("ORB Breakout & Retest", overlay=true, max_lines_count=500)
 
-// -- 5-min data (first candle of session + session events) --
-high5         = request.security("", "5", high,                                            lookahead=barmerge.lookahead_off)
-low5          = request.security("", "5", low,                                             lookahead=barmerge.lookahead_off)
-time5         = request.security("", "5", time,                                            lookahead=barmerge.lookahead_off)
-sessionOpen5  = request.security("", "5", session.ismarket and not session.ismarket[1],    lookahead=barmerge.lookahead_off)
-sessionClose5 = request.security("", "5", not session.ismarket and session.ismarket[1],    lookahead=barmerge.lookahead_off)
+// Runs at 5-min resolution. var variables persist across 5-min bars so the
+// first candle's values are captured once and held for the rest of the session.
+f_orb() =>
+    var float h = na
+    var float l = na
+    var int   t = na
+    if session.ismarket and not session.ismarket[1]  // first bar of session
+        h := high
+        l := low
+        t := time
+    if not session.ismarket and session.ismarket[1]  // session just ended
+        h := na
+        l := na
+        t := na
+    [h, l, t]
 
-// -- 1-min OHLC for retest/signal detection --
+[orbH, orbL, orbT] = request.security("", "5", f_orb(), lookahead=barmerge.lookahead_off)
+
+// 1-min OHLC for signal detection
 c1 = request.security("", "1", close, lookahead=barmerge.lookahead_off)
 h1 = request.security("", "1", high,  lookahead=barmerge.lookahead_off)
 l1 = request.security("", "1", low,   lookahead=barmerge.lookahead_off)
 
-// -- ORB levels and lines (intraday only) --
-var float orbH  = na
-var float orbL  = na
-var line  lHigh = na
-var line  lLow  = na
+// ORB lines (intraday only: 1, 2, 3, 5, 10, 15, 30-min, etc.)
+var line lHigh = na
+var line lLow  = na
 
 if timeframe.isintraday
-    if sessionOpen5
-        orbH := high5
-        orbL := low5
+    newOrb     = not na(orbT) and na(orbT[1])   // ORB just appeared for a new session
+    sessionEnd = na(orbT) and not na(orbT[1])   // session just ended
+
+    if newOrb
         line.delete(lHigh)
         line.delete(lLow)
-        // Use bar_time so the line starts exactly at the 5-min candle open
-        // regardless of the chart timeframe
-        lHigh := line.new(x1=int(time5), y1=orbH, x2=int(time5) + 60000, y2=orbH,
+        lHigh := line.new(x1=int(orbT), y1=orbH, x2=int(orbT) + 60000, y2=orbH,
                      xloc=xloc.bar_time, extend=extend.right,
                      color=color.white, style=line.style_solid, width=1)
-        lLow  := line.new(x1=int(time5), y1=orbL, x2=int(time5) + 60000, y2=orbL,
+        lLow  := line.new(x1=int(orbT), y1=orbL, x2=int(orbT) + 60000, y2=orbL,
                      xloc=xloc.bar_time, extend=extend.right,
                      color=color.orange, style=line.style_solid, width=1)
 
-    if sessionClose5
+    if sessionEnd
         line.delete(lHigh)
         line.delete(lLow)
         lHigh := na
         lLow  := na
-        orbH  := na
-        orbL  := na
 
-// -- Signal state machines --
-// States: 0 = waiting for breakout, 1 = breakout confirmed (watching for retest)
+// Signal state machines
+// 0 = waiting for breakout  |  1 = breakout confirmed, watching for retest
 var int buyState  = 0
 var int sellState = 0
 
@@ -51,11 +57,11 @@ buySignal  = false
 sellSignal = false
 
 if timeframe.isintraday
-    if sessionOpen5
+    if (not na(orbT) and na(orbT[1])) or na(orbT)   // new session or no active ORB
         buyState  := 0
         sellState := 0
 
-    // BUY: 1-min breaks above ORB high, then retests and closes above it
+    // BUY: 1-min breaks above ORB high → retest touches line → closes above
     if not na(orbH)
         if buyState == 0
             if c1 > orbH
@@ -66,7 +72,7 @@ if timeframe.isintraday
                     buySignal := true
                 buyState := 0
 
-    // SELL: 1-min breaks below ORB low, then retests and closes below it
+    // SELL: 1-min breaks below ORB low → retest touches line → closes below
     if not na(orbL)
         if sellState == 0
             if c1 < orbL
@@ -77,6 +83,6 @@ if timeframe.isintraday
                     sellSignal := true
                 sellState := 0
 
-// -- Plot signals --
+// Plot signals
 plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.normal)
 plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.normal)
