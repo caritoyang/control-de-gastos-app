@@ -60,9 +60,12 @@ var label lblPmh  = na
 var label lblPml  = na
 
 if timeframe.isintraday
-    sessionOpen = session.ismarket and not session.ismarket[1]
+    // dayofmonth != dayofmonth[1] catches regular-session-only charts where
+    // session.ismarket[1] stays true across days (no pre/post market bars).
+    sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
     sessionEnd  = not session.ismarket and session.ismarket[1]
-    newOrb      = not na(orbT) and na(orbT[1])
+    // orbT changes value each new session; compare with previous bar to detect it
+    newOrb      = not na(orbT) and (na(orbT[1]) or orbT != orbT[1])
 
     // ── Market opens at 9:30am: draw PDH, PDL, PMH, PML ─────────────────────
     if sessionOpen
