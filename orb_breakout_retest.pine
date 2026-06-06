@@ -1,7 +1,7 @@
 //@version=6
 indicator("Key Levels", overlay=true, max_lines_count=500, max_labels_count=500)
 
-// ── ORB: first 5-min candle (high/low/time) persisted for entire session ──────
+// ── ORB: first 5-min candle data, persisted for the session ───────────────────
 f_orb() =>
     var float h = na
     var float l = na
@@ -18,31 +18,29 @@ f_orb() =>
 
 [orbH, orbL, orbT] = request.security("", "5", f_orb(), lookahead=barmerge.lookahead_off)
 
-// ── PDH / PDL: last completed daily bar (= yesterday's high/low) ──────────────
+// ── PDH / PDL: previous day high/low ─────────────────────────────────────────
 pdh = request.security("", "D", high, lookahead=barmerge.lookahead_off)
 pdl = request.security("", "D", low,  lookahead=barmerge.lookahead_off)
 
-// ── PMH / PML: high/low of non-market bars since previous session close ────────
-// var state in function persists across 1-min bars; locked when regular session opens
+// ── PMH / PML: pre-market high/low (accumulated since last session close) ─────
 f_premarket() =>
     var float runH = na
     var float runL = na
     var float pmh  = na
     var float pml  = na
-    if not session.ismarket and session.ismarket[1]   // session just ended → clear
+    if not session.ismarket and session.ismarket[1]
         runH := na
         runL := na
         pmh  := na
         pml  := na
-    if not session.ismarket                            // accumulate pre-market bars
+    if not session.ismarket
         runH := na(runH) ? high : math.max(runH, high)
         runL := na(runL) ? low  : math.min(runL, low)
-    if session.ismarket and not session.ismarket[1]   // session just opened → lock
+    if session.ismarket and not session.ismarket[1]
         pmh := runH
         pml := runL
     [pmh, pml]
 
-// lookahead_on is safe here: pre-market data is already final when session opens
 [pmh, pml] = request.security("", "1", f_premarket(), lookahead=barmerge.lookahead_on)
 
 // ── Drawing objects ───────────────────────────────────────────────────────────
@@ -58,16 +56,20 @@ var line  lPmh    = na
 var line  lPml    = na
 var label lblPmh  = na
 var label lblPml  = na
+var int   lastOrbT = na  // timestamp of last drawn ORB session
 
 if timeframe.isintraday
-    // dayofmonth != dayofmonth[1] catches regular-session-only charts where
-    // session.ismarket[1] stays true across days (no pre/post market bars).
+    // sessionOpen works on charts with AND without extended hours:
+    // - extended-hours: not session.ismarket[1] fires at 9:30am transition
+    // - regular-hours only: dayofmonth != dayofmonth[1] fires when day changes
     sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
     sessionEnd  = not session.ismarket and session.ismarket[1]
-    // orbT changes value each new session; compare with previous bar to detect it
-    newOrb      = not na(orbT) and (na(orbT[1]) or orbT != orbT[1])
 
-    // ── Market opens at 9:30am: draw PDH, PDL, PMH, PML ─────────────────────
+    // newOrb fires once per session when the first 5-min candle closes (~9:35am)
+    // Comparing orbT timestamps avoids na() issues on regular-hours-only charts
+    newOrb = not na(orbT) and (na(lastOrbT) or int(orbT) != lastOrbT)
+
+    // ── 9:30am — draw PDH, PDL, PMH, PML ────────────────────────────────────
     if sessionOpen
         line.delete(lPdh)
         label.delete(lblPdh)
@@ -78,8 +80,8 @@ if timeframe.isintraday
         line.delete(lPml)
         label.delete(lblPml)
 
-        t0    = time
-        t_5am = time - 16200000  // 9:30am ET minus 4h30m = 5:00am ET
+        t0   = time
+        t5am = time - 16200000  // 9:30am minus 4h30m = 5:00am ET
 
         if not na(pdh)
             lPdh   := line.new(x1=t0, y1=pdh, x2=t0 + 60000, y2=pdh, xloc=xloc.bar_time,
@@ -87,48 +89,45 @@ if timeframe.isintraday
             lblPdh := label.new(x=t0, y=pdh, text="PDH", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.green, 80), textcolor=color.green, size=size.small)
-
         if not na(pdl)
             lPdl   := line.new(x1=t0, y1=pdl, x2=t0 + 60000, y2=pdl, xloc=xloc.bar_time,
                          extend=extend.right, color=color.red, style=line.style_solid, width=1)
             lblPdl := label.new(x=t0, y=pdl, text="PDL", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
-
         if not na(pmh)
-            lPmh   := line.new(x1=t_5am, y1=pmh, x2=t_5am + 60000, y2=pmh, xloc=xloc.bar_time,
+            lPmh   := line.new(x1=t5am, y1=pmh, x2=t5am + 60000, y2=pmh, xloc=xloc.bar_time,
                          extend=extend.right, color=color.green, style=line.style_dashed, width=1)
-            lblPmh := label.new(x=t_5am, y=pmh, text="PMH", xloc=xloc.bar_time,
+            lblPmh := label.new(x=t5am, y=pmh, text="PMH", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.green, 80), textcolor=color.green, size=size.small)
-
         if not na(pml)
-            lPml   := line.new(x1=t_5am, y1=pml, x2=t_5am + 60000, y2=pml, xloc=xloc.bar_time,
+            lPml   := line.new(x1=t5am, y1=pml, x2=t5am + 60000, y2=pml, xloc=xloc.bar_time,
                          extend=extend.right, color=color.red, style=line.style_dashed, width=1)
-            lblPml := label.new(x=t_5am, y=pml, text="PML", xloc=xloc.bar_time,
+            lblPml := label.new(x=t5am, y=pml, text="PML", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
 
-    // ── First 5-min candle closed: draw ORB high/low ─────────────────────────
+    // ── After 9:35am — draw 5-min High/Low once the first candle closes ──────
     if newOrb
+        lastOrbT := int(orbT)
         line.delete(lOrbH)
         label.delete(lblOrbH)
         line.delete(lOrbL)
         label.delete(lblOrbL)
-        lOrbH   := line.new(x1=int(orbT), y1=orbH, x2=int(orbT) + 60000, y2=orbH,
-                     xloc=xloc.bar_time, extend=extend.right,
-                     color=color.white, style=line.style_solid, width=1)
-        lOrbL   := line.new(x1=int(orbT), y1=orbL, x2=int(orbT) + 60000, y2=orbL,
-                     xloc=xloc.bar_time, extend=extend.right,
-                     color=color.white, style=line.style_solid, width=1)
-        lblOrbH := label.new(x=int(orbT), y=orbH, text="5-min High", xloc=xloc.bar_time,
+        t0 = int(orbT)
+        lOrbH   := line.new(x1=t0, y1=orbH, x2=t0 + 60000, y2=orbH, xloc=xloc.bar_time,
+                     extend=extend.right, color=color.white, style=line.style_solid, width=1)
+        lOrbL   := line.new(x1=t0, y1=orbL, x2=t0 + 60000, y2=orbL, xloc=xloc.bar_time,
+                     extend=extend.right, color=color.white, style=line.style_solid, width=1)
+        lblOrbH := label.new(x=t0, y=orbH, text="5-min High", xloc=xloc.bar_time,
                      style=label.style_label_right,
                      color=color.new(color.white, 80), textcolor=color.white, size=size.small)
-        lblOrbL := label.new(x=int(orbT), y=orbL, text="5-min Low", xloc=xloc.bar_time,
+        lblOrbL := label.new(x=t0, y=orbL, text="5-min Low", xloc=xloc.bar_time,
                      style=label.style_label_right,
                      color=color.new(color.white, 80), textcolor=color.white, size=size.small)
 
-    // ── Market closes: delete all lines and labels ────────────────────────────
+    // ── Market closes — delete all lines (extended-hours charts) ─────────────
     if sessionEnd
         line.delete(lOrbH)
         label.delete(lblOrbH)
@@ -142,15 +141,16 @@ if timeframe.isintraday
         label.delete(lblPmh)
         line.delete(lPml)
         label.delete(lblPml)
-        lOrbH   := na
-        lOrbL   := na
-        lblOrbH := na
-        lblOrbL := na
-        lPdh    := na
-        lPdl    := na
-        lblPdh  := na
-        lblPdl  := na
-        lPmh    := na
-        lPml    := na
-        lblPmh  := na
-        lblPml  := na
+        lOrbH    := na
+        lOrbL    := na
+        lblOrbH  := na
+        lblOrbL  := na
+        lPdh     := na
+        lPdl     := na
+        lblPdh   := na
+        lblPdl   := na
+        lPmh     := na
+        lPml     := na
+        lblPmh   := na
+        lblPml   := na
+        lastOrbT := na
