@@ -1,23 +1,6 @@
 //@version=6
 indicator("Key Levels", overlay=true, max_lines_count=500, max_labels_count=500)
 
-// ── ORB: first 5-min candle data, persisted for the session ───────────────────
-f_orb() =>
-    var float h = na
-    var float l = na
-    var int   t = na
-    if session.ismarket and not session.ismarket[1]
-        h := high
-        l := low
-        t := time
-    if not session.ismarket and session.ismarket[1]
-        h := na
-        l := na
-        t := na
-    [h, l, t]
-
-[orbH, orbL, orbT] = request.security("", "5", f_orb(), lookahead=barmerge.lookahead_off)
-
 // ── PDH / PDL: explicitly previous day (high[1]/low[1] in daily context) ─────
 pdh = request.security("", "D", high[1], lookahead=barmerge.lookahead_on)
 pdl = request.security("", "D", low[1],  lookahead=barmerge.lookahead_on)
@@ -44,41 +27,21 @@ f_premarket() =>
 [pmh, pml] = request.security("", "1", f_premarket(), lookahead=barmerge.lookahead_on)
 
 // ── Drawing objects ───────────────────────────────────────────────────────────
-var line  lOrbH   = na
-var line  lOrbL   = na
-var label lblOrbH = na
-var label lblOrbL = na
-var line  lPdh    = na
-var line  lPdl    = na
-var label lblPdh  = na
-var label lblPdl  = na
-var line  lPmh    = na
-var line  lPml    = na
-var label lblPmh  = na
-var label lblPml  = na
-var int   lastOrbT = na  // timestamp of last drawn ORB session
+var line  lPdh  = na
+var line  lPdl  = na
+var label lblPdh = na
+var label lblPdl = na
+var line  lPmh  = na
+var line  lPml  = na
+var label lblPmh = na
+var label lblPml = na
 
 if timeframe.isintraday
-    // sessionOpen works on charts with AND without extended hours:
-    // - extended-hours: not session.ismarket[1] fires at 9:30am transition
-    // - regular-hours only: dayofmonth != dayofmonth[1] fires when day changes
     sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
     sessionEnd  = not session.ismarket and session.ismarket[1]
 
-    // newOrb fires once per session when the first 5-min candle closes (~9:35am)
-    // Comparing orbT timestamps avoids na() issues on regular-hours-only charts
-    newOrb = not na(orbT) and (na(lastOrbT) or int(orbT) != lastOrbT)
-
-    // ── 9:30am — clear previous day's 5-min lines; draw PDH, PDL, PMH, PML ──
+    // ── 9:30am — draw PDH, PDL, PMH, PML ────────────────────────────────────
     if sessionOpen
-        line.delete(lOrbH)
-        label.delete(lblOrbH)
-        line.delete(lOrbL)
-        label.delete(lblOrbL)
-        lOrbH   := na
-        lOrbL   := na
-        lblOrbH := na
-        lblOrbL := na
         line.delete(lPdh)
         label.delete(lblPdh)
         line.delete(lPdl)
@@ -116,31 +79,8 @@ if timeframe.isintraday
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
 
-    // ── After 9:35am — draw 5-min High/Low once the first candle closes ──────
-    if newOrb
-        lastOrbT := int(orbT)
-        line.delete(lOrbH)
-        label.delete(lblOrbH)
-        line.delete(lOrbL)
-        label.delete(lblOrbL)
-        t0 = int(orbT)
-        lOrbH   := line.new(x1=t0, y1=orbH, x2=t0 + 60000, y2=orbH, xloc=xloc.bar_time,
-                     extend=extend.right, color=color.white, style=line.style_solid, width=1)
-        lOrbL   := line.new(x1=t0, y1=orbL, x2=t0 + 60000, y2=orbL, xloc=xloc.bar_time,
-                     extend=extend.right, color=color.white, style=line.style_solid, width=1)
-        lblOrbH := label.new(x=t0, y=orbH, text="5-min High", xloc=xloc.bar_time,
-                     style=label.style_label_right,
-                     color=color.new(color.white, 80), textcolor=color.white, size=size.small)
-        lblOrbL := label.new(x=t0, y=orbL, text="5-min Low", xloc=xloc.bar_time,
-                     style=label.style_label_right,
-                     color=color.new(color.white, 80), textcolor=color.white, size=size.small)
-
     // ── Market closes — delete all lines (extended-hours charts) ─────────────
     if sessionEnd
-        line.delete(lOrbH)
-        label.delete(lblOrbH)
-        line.delete(lOrbL)
-        label.delete(lblOrbL)
         line.delete(lPdh)
         label.delete(lblPdh)
         line.delete(lPdl)
@@ -149,16 +89,11 @@ if timeframe.isintraday
         label.delete(lblPmh)
         line.delete(lPml)
         label.delete(lblPml)
-        lOrbH    := na
-        lOrbL    := na
-        lblOrbH  := na
-        lblOrbL  := na
-        lPdh     := na
-        lPdl     := na
-        lblPdh   := na
-        lblPdl   := na
-        lPmh     := na
-        lPml     := na
-        lblPmh   := na
-        lblPml   := na
-        lastOrbT := na
+        lPdh  := na
+        lPdl  := na
+        lblPdh := na
+        lblPdl := na
+        lPmh  := na
+        lPml  := na
+        lblPmh := na
+        lblPml := na
