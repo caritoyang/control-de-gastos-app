@@ -1,0 +1,103 @@
+//@version=6
+indicator("Key Levels", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ── PDH / PDL values (previous completed day) ────────────────────────────────
+pdh = request.security("", "D", high[1], lookahead=barmerge.lookahead_on)
+pdl = request.security("", "D", low[1],  lookahead=barmerge.lookahead_on)
+
+// ── Timestamp of the previous session's 9:30am open ──────────────────────────
+f_prev_open_time() =>
+    var int prevT = na
+    var int currT = na
+    if session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
+        prevT := currT
+        currT := time
+    prevT
+
+prevOpenT = request.security("", "1", f_prev_open_time(), lookahead=barmerge.lookahead_on)
+
+// ── PMH / PML values (pre-market high/low 4:00am–9:30am ET only) ─────────────
+f_premarket() =>
+    var float runH = na
+    var float runL = na
+    var float pmh  = na
+    var float pml  = na
+
+    // Only accumulate bars in the 4:00am–9:30am ET window
+    h = hour(time, "America/New_York")
+    isPreMarket = not session.ismarket and h >= 4 and h < 12
+
+    // Reset accumulators when market closes (4pm), so after-hours is excluded
+    if not session.ismarket and session.ismarket[1]
+        runH := na
+        runL := na
+
+    if isPreMarket
+        runH := na(runH) ? high : math.max(runH, high)
+        runL := na(runL) ? low  : math.min(runL, low)
+
+    if session.ismarket and not session.ismarket[1]
+        pmh := runH
+        pml := runL
+    [pmh, pml]
+
+[pmh, pml] = request.security("", "1", f_premarket(), lookahead=barmerge.lookahead_on)
+
+// ── Drawing objects ───────────────────────────────────────────────────────────
+var line  lPdh   = na
+var line  lPdl   = na
+var label lblPdh = na
+var label lblPdl = na
+var line  lPmh   = na
+var line  lPml   = na
+var label lblPmh = na
+var label lblPml = na
+
+if timeframe.isintraday
+    sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
+    sessionEnd  = not session.ismarket and session.ismarket[1]
+
+    // ── 9:30am: draw all lines ────────────────────────────────────────────────
+    if sessionOpen
+        line.delete(lPdh),  label.delete(lblPdh)
+        line.delete(lPdl),  label.delete(lblPdl)
+        line.delete(lPmh),  label.delete(lblPmh)
+        line.delete(lPml),  label.delete(lblPml)
+
+        t0    = time                                           // 9:30am today
+        t4am  = time - 19800000                              // 4:00am today (9:30 - 5.5h)
+        tPrev = not na(prevOpenT) ? prevOpenT : t0 - 86400000 // 9:30am prev day
+
+        if not na(pdh)
+            lPdh   := line.new(x1=tPrev, y1=pdh, x2=tPrev+60000, y2=pdh, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.green, style=line.style_solid, width=1)
+            lblPdh := label.new(x=t0, y=pdh, text="PDH", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.green, 80), textcolor=color.green, size=size.small)
+        if not na(pdl)
+            lPdl   := line.new(x1=tPrev, y1=pdl, x2=tPrev+60000, y2=pdl, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.red, style=line.style_solid, width=1)
+            lblPdl := label.new(x=t0, y=pdl, text="PDL", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.red, 80), textcolor=color.red, size=size.small)
+        if not na(pmh)
+            lPmh   := line.new(x1=t4am, y1=pmh, x2=t4am+60000, y2=pmh, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.green, style=line.style_dashed, width=1)
+            lblPmh := label.new(x=t4am, y=pmh, text="PMH", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.green, 80), textcolor=color.green, size=size.small)
+        if not na(pml)
+            lPml   := line.new(x1=t4am, y1=pml, x2=t4am+60000, y2=pml, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.red, style=line.style_dashed, width=1)
+            lblPml := label.new(x=t4am, y=pml, text="PML", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.red, 80), textcolor=color.red, size=size.small)
+
+    // ── 4:00pm: delete all lines ──────────────────────────────────────────────
+    if sessionEnd
+        line.delete(lPdh),  label.delete(lblPdh)
+        line.delete(lPdl),  label.delete(lblPdl)
+        line.delete(lPmh),  label.delete(lblPmh)
+        line.delete(lPml),  label.delete(lblPml)
+        lPdh := na,  lPdl := na,  lPmh := na,  lPml := na
+        lblPdh := na, lblPdl := na, lblPmh := na, lblPml := na

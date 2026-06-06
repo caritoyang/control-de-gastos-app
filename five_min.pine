@@ -1,0 +1,54 @@
+//@version=6
+indicator("5-min", overlay=true, max_lines_count=500, max_labels_count=500)
+
+// ── First 5-min candle: read directly at 5-min resolution ────────────────────
+f_orb() =>
+    var float orbH = na
+    var float orbL = na
+    if session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
+        orbH := high
+        orbL := low
+    [orbH, orbL]
+
+[orbH, orbL] = request.security("", "5", f_orb(), lookahead=barmerge.lookahead_on)
+
+// ── Drawing objects ───────────────────────────────────────────────────────────
+var line  lH    = na
+var line  lL    = na
+var label lblH  = na
+var label lblL  = na
+var bool  drawn = false
+var int   tOpen = na
+
+if timeframe.isintraday
+    sessionOpen = session.ismarket and (not session.ismarket[1] or dayofmonth != dayofmonth[1])
+    sessionEnd  = not session.ismarket and session.ismarket[1]
+
+    if sessionOpen
+        line.delete(lH),  label.delete(lblH)
+        line.delete(lL),  label.delete(lblL)
+        lH := na,  lL := na
+        lblH := na, lblL := na
+        drawn := false
+        tOpen := time  // 9:30am
+
+    // Draw as soon as orbH/orbL are available (values from the 9:30–9:35 candle)
+    if not drawn and not na(orbH) and session.ismarket
+        lH   := line.new(x1=tOpen, y1=orbH, x2=tOpen+60000, y2=orbH, xloc=xloc.bar_time,
+                   extend=extend.right, color=color.white, style=line.style_solid, width=1)
+        lblH := label.new(x=tOpen, y=orbH, text="5H", xloc=xloc.bar_time,
+                   style=label.style_label_right,
+                   color=color.new(color.white, 80), textcolor=color.white, size=size.small)
+        lL   := line.new(x1=tOpen, y1=orbL, x2=tOpen+60000, y2=orbL, xloc=xloc.bar_time,
+                   extend=extend.right, color=color.white, style=line.style_solid, width=1)
+        lblL := label.new(x=tOpen, y=orbL, text="5L", xloc=xloc.bar_time,
+                   style=label.style_label_right,
+                   color=color.new(color.white, 80), textcolor=color.white, size=size.small)
+        drawn := true
+
+    if sessionEnd
+        line.delete(lH),  label.delete(lblH)
+        line.delete(lL),  label.delete(lblL)
+        lH := na,  lL := na
+        lblH := na, lblL := na
+        drawn := false

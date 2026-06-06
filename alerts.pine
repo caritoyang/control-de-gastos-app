@@ -1,0 +1,146 @@
+//@version=6
+indicator("Alerts", overlay=false)
+
+// ── Ticker inputs ─────────────────────────────────────────────────────────────
+t1  = input.symbol("AAPL",  title="Ticker 1")
+t2  = input.symbol("MSFT",  title="Ticker 2")
+t3  = input.symbol("GOOGL", title="Ticker 3")
+t4  = input.symbol("AMZN",  title="Ticker 4")
+t5  = input.symbol("NVDA",  title="Ticker 5")
+t6  = input.symbol("META",  title="Ticker 6")
+t7  = input.symbol("TSLA",  title="Ticker 7")
+t8  = input.symbol("SPY",   title="Ticker 8")
+t9  = input.symbol("QQQ",   title="Ticker 9")
+t10 = input.symbol("AMD",   title="Ticker 10")
+
+// ── Pre-market high/low — uses session.ispremarket on extended-session data ───
+f_pm() =>
+    var float runH = na
+    var float runL = na
+    var float pmh  = na
+    var float pml  = na
+    // Reset accumulators at the start of each pre-market window
+    if session.ispremarket and not session.ispremarket[1]
+        runH := na
+        runL := na
+    // Accumulate during pre-market (4:00am–9:30am ET)
+    if session.ispremarket
+        runH := na(runH) ? high : math.max(runH, high)
+        runL := na(runL) ? low  : math.min(runL, low)
+    // Lock values at market open
+    if session.ismarket and not session.ismarket[1]
+        pmh := runH
+        pml := runL
+    [pmh, pml]
+
+// Extended-session tickers (required to access pre-market bars)
+e1  = ticker.modify(t1,  session.extended)
+e2  = ticker.modify(t2,  session.extended)
+e3  = ticker.modify(t3,  session.extended)
+e4  = ticker.modify(t4,  session.extended)
+e5  = ticker.modify(t5,  session.extended)
+e6  = ticker.modify(t6,  session.extended)
+e7  = ticker.modify(t7,  session.extended)
+e8  = ticker.modify(t8,  session.extended)
+e9  = ticker.modify(t9,  session.extended)
+e10 = ticker.modify(t10, session.extended)
+
+// ── Previous day high/low ─────────────────────────────────────────────────────
+f_dhl() => [high[1], low[1]]
+
+// ── Data fetches (30 calls: 10 daily + 10 pre-market + 10 price) ──────────────
+[pdh1,  pdl1]  = request.security(t1,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh2,  pdl2]  = request.security(t2,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh3,  pdl3]  = request.security(t3,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh4,  pdl4]  = request.security(t4,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh5,  pdl5]  = request.security(t5,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh6,  pdl6]  = request.security(t6,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh7,  pdl7]  = request.security(t7,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh8,  pdl8]  = request.security(t8,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh9,  pdl9]  = request.security(t9,  "D", f_dhl(), lookahead=barmerge.lookahead_on)
+[pdh10, pdl10] = request.security(t10, "D", f_dhl(), lookahead=barmerge.lookahead_on)
+
+[pmh1,  pml1]  = request.security(e1,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh2,  pml2]  = request.security(e2,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh3,  pml3]  = request.security(e3,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh4,  pml4]  = request.security(e4,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh5,  pml5]  = request.security(e5,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh6,  pml6]  = request.security(e6,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh7,  pml7]  = request.security(e7,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh8,  pml8]  = request.security(e8,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh9,  pml9]  = request.security(e9,  "1", f_pm(), lookahead=barmerge.lookahead_on)
+[pmh10, pml10] = request.security(e10, "1", f_pm(), lookahead=barmerge.lookahead_on)
+
+price1  = request.security(t1,  "", close)
+price2  = request.security(t2,  "", close)
+price3  = request.security(t3,  "", close)
+price4  = request.security(t4,  "", close)
+price5  = request.security(t5,  "", close)
+price6  = request.security(t6,  "", close)
+price7  = request.security(t7,  "", close)
+price8  = request.security(t8,  "", close)
+price9  = request.security(t9,  "", close)
+price10 = request.security(t10, "", close)
+
+// ── Signal: ▲ green if price > PMH and PDH | ▼ red if price < PML and PDL ────
+f_sig(p, pmh, pml, pdh, pdl) =>
+    if not na(p) and not na(pmh) and not na(pdh) and p > pmh and p > pdh
+        ["▲", color.lime]
+    else if not na(p) and not na(pml) and not na(pdl) and p < pml and p < pdl
+        ["▼", color.red]
+    else
+        ["●", color.white]
+
+[sig1,  sc1]  = f_sig(price1,  pmh1,  pml1,  pdh1,  pdl1)
+[sig2,  sc2]  = f_sig(price2,  pmh2,  pml2,  pdh2,  pdl2)
+[sig3,  sc3]  = f_sig(price3,  pmh3,  pml3,  pdh3,  pdl3)
+[sig4,  sc4]  = f_sig(price4,  pmh4,  pml4,  pdh4,  pdl4)
+[sig5,  sc5]  = f_sig(price5,  pmh5,  pml5,  pdh5,  pdl5)
+[sig6,  sc6]  = f_sig(price6,  pmh6,  pml6,  pdh6,  pdl6)
+[sig7,  sc7]  = f_sig(price7,  pmh7,  pml7,  pdh7,  pdl7)
+[sig8,  sc8]  = f_sig(price8,  pmh8,  pml8,  pdh8,  pdl8)
+[sig9,  sc9]  = f_sig(price9,  pmh9,  pml9,  pdh9,  pdl9)
+[sig10, sc10] = f_sig(price10, pmh10, pml10, pdh10, pdl10)
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+f_v(v) =>
+    na(v) ? "—" : str.tostring(v, "0.00")
+
+f_sym(s) =>
+    i = str.pos(s, ":")
+    na(i) ? s : str.substring(s, i + 1)
+
+// ── Table (6 cols × 11 rows) ──────────────────────────────────────────────────
+var table tbl = table.new(position.top_right, 6, 11,
+     bgcolor=color.new(color.black, 5),
+     border_width=1, border_color=color.new(color.gray, 60),
+     frame_width=1,  frame_color=color.gray)
+
+f_row(r, sym, sig, sc, pmh, pml, pdh, pdl) =>
+    rbg = color.new(color.black, 5)
+    table.cell(tbl, 0, r, f_sym(sym), text_color=color.white, bgcolor=rbg, text_size=size.small)
+    table.cell(tbl, 1, r, sig,        text_color=sc,          bgcolor=rbg, text_size=size.normal)
+    table.cell(tbl, 2, r, f_v(pmh),   text_color=color.lime,  bgcolor=rbg, text_size=size.small)
+    table.cell(tbl, 3, r, f_v(pml),   text_color=color.red,   bgcolor=rbg, text_size=size.small)
+    table.cell(tbl, 4, r, f_v(pdh),   text_color=color.lime,  bgcolor=rbg, text_size=size.small)
+    table.cell(tbl, 5, r, f_v(pdl),   text_color=color.red,   bgcolor=rbg, text_size=size.small)
+
+if barstate.islast
+    hbg = color.new(color.navy, 30)
+    table.cell(tbl, 0, 0, "Ticker", text_color=color.silver, bgcolor=hbg, text_size=size.small)
+    table.cell(tbl, 1, 0, "Sig",    text_color=color.silver, bgcolor=hbg, text_size=size.small)
+    table.cell(tbl, 2, 0, "PMH",    text_color=color.silver, bgcolor=hbg, text_size=size.small)
+    table.cell(tbl, 3, 0, "PML",    text_color=color.silver, bgcolor=hbg, text_size=size.small)
+    table.cell(tbl, 4, 0, "PDH",    text_color=color.silver, bgcolor=hbg, text_size=size.small)
+    table.cell(tbl, 5, 0, "PDL",    text_color=color.silver, bgcolor=hbg, text_size=size.small)
+
+    f_row(1,  t1,  sig1,  sc1,  pmh1,  pml1,  pdh1,  pdl1)
+    f_row(2,  t2,  sig2,  sc2,  pmh2,  pml2,  pdh2,  pdl2)
+    f_row(3,  t3,  sig3,  sc3,  pmh3,  pml3,  pdh3,  pdl3)
+    f_row(4,  t4,  sig4,  sc4,  pmh4,  pml4,  pdh4,  pdl4)
+    f_row(5,  t5,  sig5,  sc5,  pmh5,  pml5,  pdh5,  pdl5)
+    f_row(6,  t6,  sig6,  sc6,  pmh6,  pml6,  pdh6,  pdl6)
+    f_row(7,  t7,  sig7,  sc7,  pmh7,  pml7,  pdh7,  pdl7)
+    f_row(8,  t8,  sig8,  sc8,  pmh8,  pml8,  pdh8,  pdl8)
+    f_row(9,  t9,  sig9,  sc9,  pmh9,  pml9,  pdh9,  pdl9)
+    f_row(10, t10, sig10, sc10, pmh10, pml10, pdh10, pdl10)
