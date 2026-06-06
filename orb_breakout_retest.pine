@@ -1,17 +1,16 @@
 //@version=6
-indicator("ORB Breakout & Retest", overlay=true, max_lines_count=500)
+indicator("Key Levels", overlay=true, max_lines_count=500, max_labels_count=500)
 
-// Runs at 5-min resolution. var variables persist across 5-min bars so the
-// first candle's values are captured once and held for the rest of the session.
+// ── ORB: first 5-min candle (high/low/time) persisted for entire session ──────
 f_orb() =>
     var float h = na
     var float l = na
     var int   t = na
-    if session.ismarket and not session.ismarket[1]  // first bar of session
+    if session.ismarket and not session.ismarket[1]
         h := high
         l := low
         t := time
-    if not session.ismarket and session.ismarket[1]  // session just ended
+    if not session.ismarket and session.ismarket[1]
         h := na
         l := na
         t := na
@@ -19,82 +18,135 @@ f_orb() =>
 
 [orbH, orbL, orbT] = request.security("", "5", f_orb(), lookahead=barmerge.lookahead_off)
 
-// 1-min OHLC for signal detection
-c1 = request.security("", "1", close, lookahead=barmerge.lookahead_off)
-h1 = request.security("", "1", high,  lookahead=barmerge.lookahead_off)
-l1 = request.security("", "1", low,   lookahead=barmerge.lookahead_off)
+// ── PDH / PDL: last completed daily bar (= yesterday's high/low) ──────────────
+pdh = request.security("", "D", high, lookahead=barmerge.lookahead_off)
+pdl = request.security("", "D", low,  lookahead=barmerge.lookahead_off)
 
-// ORB lines and labels (intraday only: 1, 2, 3, 5, 10, 15, 30-min, etc.)
-var line  lHigh = na
-var line  lLow  = na
-var label lblHigh = na
-var label lblLow  = na
+// ── PMH / PML: high/low of non-market bars since previous session close ────────
+// var state in function persists across 1-min bars; locked when regular session opens
+f_premarket() =>
+    var float runH = na
+    var float runL = na
+    var float pmh  = na
+    var float pml  = na
+    if not session.ismarket and session.ismarket[1]   // session just ended → clear
+        runH := na
+        runL := na
+        pmh  := na
+        pml  := na
+    if not session.ismarket                            // accumulate pre-market bars
+        runH := na(runH) ? high : math.max(runH, high)
+        runL := na(runL) ? low  : math.min(runL, low)
+    if session.ismarket and not session.ismarket[1]   // session just opened → lock
+        pmh := runH
+        pml := runL
+    [pmh, pml]
+
+// lookahead_on is safe here: pre-market data is already final when session opens
+[pmh, pml] = request.security("", "1", f_premarket(), lookahead=barmerge.lookahead_on)
+
+// ── Drawing objects ───────────────────────────────────────────────────────────
+var line  lOrbH   = na
+var line  lOrbL   = na
+var label lblOrbH = na
+var label lblOrbL = na
+var line  lPdh    = na
+var line  lPdl    = na
+var label lblPdh  = na
+var label lblPdl  = na
+var line  lPmh    = na
+var line  lPml    = na
+var label lblPmh  = na
+var label lblPml  = na
 
 if timeframe.isintraday
-    newOrb     = not na(orbT) and na(orbT[1])   // ORB just appeared for a new session
-    sessionEnd = na(orbT) and not na(orbT[1])   // session just ended
+    sessionOpen = session.ismarket and not session.ismarket[1]
+    sessionEnd  = not session.ismarket and session.ismarket[1]
+    newOrb      = not na(orbT) and na(orbT[1])
 
+    // ── Market opens at 9:30am: draw PDH, PDL, PMH, PML ─────────────────────
+    if sessionOpen
+        line.delete(lPdh)
+        label.delete(lblPdh)
+        line.delete(lPdl)
+        label.delete(lblPdl)
+        line.delete(lPmh)
+        label.delete(lblPmh)
+        line.delete(lPml)
+        label.delete(lblPml)
+
+        t0 = time
+
+        if not na(pdh)
+            lPdh   := line.new(x1=t0, y1=pdh, x2=t0 + 60000, y2=pdh, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.green, style=line.style_solid, width=1)
+            lblPdh := label.new(x=t0, y=pdh, text="PDH", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.green, 80), textcolor=color.green, size=size.small)
+
+        if not na(pdl)
+            lPdl   := line.new(x1=t0, y1=pdl, x2=t0 + 60000, y2=pdl, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.red, style=line.style_solid, width=1)
+            lblPdl := label.new(x=t0, y=pdl, text="PDL", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.red, 80), textcolor=color.red, size=size.small)
+
+        if not na(pmh)
+            lPmh   := line.new(x1=t0, y1=pmh, x2=t0 + 60000, y2=pmh, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.green, style=line.style_dashed, width=1)
+            lblPmh := label.new(x=t0, y=pmh, text="PMH", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.green, 80), textcolor=color.green, size=size.small)
+
+        if not na(pml)
+            lPml   := line.new(x1=t0, y1=pml, x2=t0 + 60000, y2=pml, xloc=xloc.bar_time,
+                         extend=extend.right, color=color.red, style=line.style_dashed, width=1)
+            lblPml := label.new(x=t0, y=pml, text="PML", xloc=xloc.bar_time,
+                         style=label.style_label_right,
+                         color=color.new(color.red, 80), textcolor=color.red, size=size.small)
+
+    // ── First 5-min candle closed: draw ORB high/low ─────────────────────────
     if newOrb
-        line.delete(lHigh)
-        line.delete(lLow)
-        label.delete(lblHigh)
-        label.delete(lblLow)
-        lHigh := line.new(x1=int(orbT), y1=orbH, x2=int(orbT) + 60000, y2=orbH,
+        line.delete(lOrbH)
+        label.delete(lblOrbH)
+        line.delete(lOrbL)
+        label.delete(lblOrbL)
+        lOrbH   := line.new(x1=int(orbT), y1=orbH, x2=int(orbT) + 60000, y2=orbH,
                      xloc=xloc.bar_time, extend=extend.right,
                      color=color.white, style=line.style_solid, width=1)
-        lLow  := line.new(x1=int(orbT), y1=orbL, x2=int(orbT) + 60000, y2=orbL,
+        lOrbL   := line.new(x1=int(orbT), y1=orbL, x2=int(orbT) + 60000, y2=orbL,
                      xloc=xloc.bar_time, extend=extend.right,
                      color=color.white, style=line.style_solid, width=1)
-        lblHigh := label.new(x=int(orbT), y=orbH, text="5-min High",
-                     xloc=xloc.bar_time, style=label.style_label_right,
-                     color=color.new(color.white, 85), textcolor=color.white, size=size.small)
-        lblLow  := label.new(x=int(orbT), y=orbL, text="5-min Low",
-                     xloc=xloc.bar_time, style=label.style_label_right,
-                     color=color.new(color.white, 85), textcolor=color.white, size=size.small)
+        lblOrbH := label.new(x=int(orbT), y=orbH, text="5-min High", xloc=xloc.bar_time,
+                     style=label.style_label_right,
+                     color=color.new(color.white, 80), textcolor=color.white, size=size.small)
+        lblOrbL := label.new(x=int(orbT), y=orbL, text="5-min Low", xloc=xloc.bar_time,
+                     style=label.style_label_right,
+                     color=color.new(color.white, 80), textcolor=color.white, size=size.small)
 
+    // ── Market closes: delete all lines and labels ────────────────────────────
     if sessionEnd
-        line.delete(lHigh)
-        line.delete(lLow)
-        label.delete(lblHigh)
-        label.delete(lblLow)
-        lHigh   := na
-        lLow    := na
-        lblHigh := na
-        lblLow  := na
-
-// Signal state machines
-// 0 = waiting for breakout  |  1 = breakout confirmed, watching for retest
-var int buyState  = 0
-var int sellState = 0
-
-buySignal  = false
-sellSignal = false
-
-if timeframe.isintraday
-    if (not na(orbT) and na(orbT[1])) or na(orbT)   // new session or no active ORB
-        buyState  := 0
-        sellState := 0
-
-    // BUY: 1-min breaks above ORB high → price returns down to touch line → BUY
-    if not na(orbH)
-        if buyState == 0
-            if c1 > orbH
-                buyState := 1
-        else if buyState == 1
-            if l1 <= orbH
-                buySignal := true
-                buyState  := 0
-
-    // SELL: 1-min breaks below ORB low → price returns up to touch line → SELL
-    if not na(orbL)
-        if sellState == 0
-            if c1 < orbL
-                sellState := 1
-        else if sellState == 1
-            if h1 >= orbL
-                sellSignal := true
-                sellState  := 0
-
-// Plot signals
-plotshape(buySignal,  title="BUY",  location=location.belowbar, style=shape.triangleup,   color=color.lime, size=size.tiny)
-plotshape(sellSignal, title="SELL", location=location.abovebar, style=shape.triangledown, color=color.red,  size=size.tiny)
+        line.delete(lOrbH)
+        label.delete(lblOrbH)
+        line.delete(lOrbL)
+        label.delete(lblOrbL)
+        line.delete(lPdh)
+        label.delete(lblPdh)
+        line.delete(lPdl)
+        label.delete(lblPdl)
+        line.delete(lPmh)
+        label.delete(lblPmh)
+        line.delete(lPml)
+        label.delete(lblPml)
+        lOrbH   := na
+        lOrbL   := na
+        lblOrbH := na
+        lblOrbL := na
+        lPdh    := na
+        lPdl    := na
+        lblPdh  := na
+        lblPdl  := na
+        lPmh    := na
+        lPml    := na
+        lblPmh  := na
+        lblPml  := na
