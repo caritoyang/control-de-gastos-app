@@ -69,8 +69,16 @@ if timeframe.isintraday
     // Comparing orbT timestamps avoids na() issues on regular-hours-only charts
     newOrb = not na(orbT) and (na(lastOrbT) or int(orbT) != lastOrbT)
 
-    // ── 9:30am — draw PDH, PDL, PMH, PML ────────────────────────────────────
+    // ── 9:30am — clear previous day's 5-min lines; draw PDH, PDL, PMH, PML ──
     if sessionOpen
+        line.delete(lOrbH)
+        label.delete(lblOrbH)
+        line.delete(lOrbL)
+        label.delete(lblOrbL)
+        lOrbH   := na
+        lOrbL   := na
+        lblOrbH := na
+        lblOrbL := na
         line.delete(lPdh)
         label.delete(lblPdh)
         line.delete(lPdl)
