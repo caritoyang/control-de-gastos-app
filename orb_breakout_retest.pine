@@ -75,7 +75,8 @@ if timeframe.isintraday
         line.delete(lPml)
         label.delete(lblPml)
 
-        t0 = time
+        t0    = time
+        t_5am = time - 16200000  // 9:30am ET minus 4h30m = 5:00am ET
 
         if not na(pdh)
             lPdh   := line.new(x1=t0, y1=pdh, x2=t0 + 60000, y2=pdh, xloc=xloc.bar_time,
@@ -92,16 +93,16 @@ if timeframe.isintraday
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
 
         if not na(pmh)
-            lPmh   := line.new(x1=t0, y1=pmh, x2=t0 + 60000, y2=pmh, xloc=xloc.bar_time,
+            lPmh   := line.new(x1=t_5am, y1=pmh, x2=t_5am + 60000, y2=pmh, xloc=xloc.bar_time,
                          extend=extend.right, color=color.green, style=line.style_dashed, width=1)
-            lblPmh := label.new(x=t0, y=pmh, text="PMH", xloc=xloc.bar_time,
+            lblPmh := label.new(x=t_5am, y=pmh, text="PMH", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.green, 80), textcolor=color.green, size=size.small)
 
         if not na(pml)
-            lPml   := line.new(x1=t0, y1=pml, x2=t0 + 60000, y2=pml, xloc=xloc.bar_time,
+            lPml   := line.new(x1=t_5am, y1=pml, x2=t_5am + 60000, y2=pml, xloc=xloc.bar_time,
                          extend=extend.right, color=color.red, style=line.style_dashed, width=1)
-            lblPml := label.new(x=t0, y=pml, text="PML", xloc=xloc.bar_time,
+            lblPml := label.new(x=t_5am, y=pml, text="PML", xloc=xloc.bar_time,
                          style=label.style_label_right,
                          color=color.new(color.red, 80), textcolor=color.red, size=size.small)
 
